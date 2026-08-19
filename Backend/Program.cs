@@ -1,8 +1,6 @@
 using Backend.Data;
 using Backend.Helpers;
-using Backend.Mapping;
 using FluentValidation;
-using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -23,11 +21,6 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 //2. Register Helpers & FluentValidation
 builder.Services.AddScoped<JwtHelper>();
-
-// Automatically execute those validators when requests come in.
-builder.Services.AddFluentValidationAutoValidation();
-
-// This is for All FluentValidation class
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 

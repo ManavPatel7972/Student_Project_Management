@@ -1,11 +1,11 @@
-using Backend.DTOs.Auth;
+using Backend.DTOs.User;
 using FluentValidation;
 
-namespace Backend.Validators
+namespace Backend.Validators.User
 {
-    public class RegisterRequestDtoValidator : AbstractValidator<RegisterRequestDto>
+    public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
     {
-        public RegisterRequestDtoValidator()
+        public CreateUserDtoValidator()
         {
             RuleFor(x => x.FullName)
                 .NotEmpty().WithMessage("Full Name is required.")
@@ -24,7 +24,10 @@ namespace Backend.Validators
                 .MaximumLength(15).WithMessage("Mobile Number cannot exceed 15 characters.");
 
             RuleFor(x => x.UserTypeId)
-                .InclusiveBetween(1, 3).WithMessage("Invalid User Role selected. Must be Admin (1), Faculty (2), or Student (3).");
+                .GreaterThan(0).WithMessage("User Type is required.");
+
+            RuleFor(x => x.RoleId)
+                .GreaterThan(0).WithMessage("Role is required.");
         }
     }
 }

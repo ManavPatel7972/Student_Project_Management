@@ -1,15 +1,12 @@
 using Backend.DTOs.Task;
 using FluentValidation;
 
-namespace Backend.Validators
+namespace Backend.Validators.Task
 {
-    public class CreateTaskDtoValidator : AbstractValidator<CreateTaskDto>
+    public class UpdateTaskDtoValidator : AbstractValidator<UpdateTaskDto>
     {
-        public CreateTaskDtoValidator()
+        public UpdateTaskDtoValidator()
         {
-            RuleFor(x => x.ProjectAllocationId)
-                .GreaterThan(0).WithMessage("Project Allocation is required.");
-
             RuleFor(x => x.TaskTitle)
                 .NotEmpty().WithMessage("Task Title is required.")
                 .MaximumLength(200).WithMessage("Task Title cannot exceed 200 characters.");
@@ -22,6 +19,11 @@ namespace Backend.Validators
 
             RuleFor(x => x.AssignedScore)
                 .InclusiveBetween(0, 100).WithMessage("Assigned Score must be between 0 and 100.");
+
+            RuleFor(x => x.EarnedScore)
+                .InclusiveBetween(0, 100).WithMessage("Earned Score must be between 0 and 100.")
+                .LessThanOrEqualTo(x => x.AssignedScore).WithMessage("Earned Score cannot exceed Assigned Score.")
+                .When(x => x.EarnedScore.HasValue);
         }
     }
 }

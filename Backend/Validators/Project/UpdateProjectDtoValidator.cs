@@ -1,11 +1,11 @@
 using Backend.DTOs.Project;
 using FluentValidation;
 
-namespace Backend.Validators
+namespace Backend.Validators.Project
 {
-    public class CreateProjectDtoValidator : AbstractValidator<CreateProjectDto>
+    public class UpdateProjectDtoValidator : AbstractValidator<UpdateProjectDto>
     {
-        public CreateProjectDtoValidator()
+        public UpdateProjectDtoValidator()
         {
             RuleFor(x => x.ProjectTitle)
                 .NotEmpty().WithMessage("Project Title is required.")
