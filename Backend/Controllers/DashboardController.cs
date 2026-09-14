@@ -1,9 +1,14 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Backend.Data;
 using Backend.DTOs.Dashboard;
 using Backend.DTOs.ProjectAllocation;
 using Backend.DTOs.Task;
 using Backend.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -146,81 +151,94 @@ namespace Backend.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAdminDashboard()
         {
-            var overview = new DashboardOverviewDto
+            try
             {
-                TotalUsers = await _context.Users
-                .CountAsync(),
+                var overview = new DashboardOverviewDto
+                {
+                    TotalUsers = await _context.Users
+                    .CountAsync(),
 
-                TotalStudents = await _context.Users
-                .CountAsync(u => u.UserType.UserTypeName == "Student"),
+                    TotalStudents = await _context.Users
+                    .CountAsync(u => u.UserType.UserTypeName == "Student"),
 
-                TotalFaculty = await _context.Users
-                .CountAsync(u => u.UserType.UserTypeName == "Faculty"),
+                    TotalFaculty = await _context.Users
+                    .CountAsync(u => u.UserType.UserTypeName == "Faculty"),
 
-                TotalProjects = await _context.Projects
-                .CountAsync(),
+                    TotalProjects = await _context.Projects
+                    .CountAsync(),
 
-                TotalAllocations = await _context.ProjectAllocations
-                .CountAsync(),
+                    TotalAllocations = await _context.ProjectAllocations
+                    .CountAsync(),
 
-                TotalTasks = await _context.Tasks
-                .CountAsync(),
+                    TotalTasks = await _context.Tasks
+                    .CountAsync(),
 
-                ProjectsNotStarted = await _context.Projects
-                .CountAsync(p => p.Status == ProjectStatus.NotStarted),
+                    ProjectsNotStarted = await _context.Projects
+                    .CountAsync(p => p.Status == ProjectStatus.NotStarted),
 
-                ProjectsCompleted = await _context.Projects
-                .CountAsync(p => p.Status == ProjectStatus.Completed),
+                    ProjectsCompleted = await _context.Projects
+                    .CountAsync(p => p.Status == ProjectStatus.Completed),
 
-                ProjectsInProgress = await _context.Projects
-                .CountAsync(p => p.Status == ProjectStatus.InProgress),
+                    ProjectsInProgress = await _context.Projects
+                    .CountAsync(p => p.Status == ProjectStatus.InProgress),
 
-                TasksLow = await _context.Tasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
+                    TasksLow = await _context.Tasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
 
-                TasksMedium = await _context.Tasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
+                    TasksMedium = await _context.Tasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
 
-                TasksHigh = await _context.Tasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
+                    TasksHigh = await _context.Tasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
 
-                TasksCritical = await _context.Tasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
+                    TasksCritical = await _context.Tasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
 
-                TasksPending = await _context.Tasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
+                    TasksPending = await _context.Tasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
 
-                TasksInProgress = await _context.Tasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
+                    TasksInProgress = await _context.Tasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
 
-                TasksCompleted = await _context.Tasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed"),
+                    TasksCompleted = await _context.Tasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed"),
 
-            };
+                };
 
-            var recentAllocations = await GetRecentAllocationsQuery()
-                .Take(5)
-                .ToListAsync();
+                var recentAllocations = await GetRecentAllocationsQuery()
+                    .Take(5)
+                    .ToListAsync();
 
-            var recentTasks = await GetRecentTasksQuery()
-                .Take(5)
-                .ToListAsync();
+                var recentTasks = await GetRecentTasksQuery()
+                    .Take(5)
+                    .ToListAsync();
 
 
-            var result = new AdminDashboardDto
+                var result = new AdminDashboardDto
+                {
+                    Overview = overview,
+                    RecentAllocations = recentAllocations,
+                    RecentTasks = recentTasks
+                };
+
+                return Ok(new ApiResponse<AdminDashboardDto>
+                {
+                    Success = true,
+                    StatusCode = 200,
+                    Data = result,
+                    Message = "Admin Dashboard Fetched Successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Overview = overview,
-                RecentAllocations = recentAllocations,
-                RecentTasks = recentTasks
-            };
-
-            return Ok(new ApiResponse<AdminDashboardDto>
-            {
-                Success = true,
-                StatusCode = 200,
-                Data = result,
-                Message = "Admin Dashboard Fetched Successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         #endregion
@@ -232,101 +250,113 @@ namespace Backend.Controllers
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> GetStudentDashboard()
         {
-            var currentUserId = GetCurrentUserId();
-
-            if (!currentUserId.HasValue)
+            try
             {
-                return Unauthorized(new ApiResponse<object>
+                var currentUserId = GetCurrentUserId();
+
+                if (!currentUserId.HasValue)
                 {
-                    Success = false,
-                    StatusCode = 401,
-                    Errors = new List<string>
+                    return Unauthorized(new ApiResponse<object>
                     {
-                        "Unauthorized."
-                    }
+                        Success = false,
+                        StatusCode = 401,
+                        Errors = new List<string>
+                        {
+                            "Unauthorized."
+                        }
+                    });
+                }
+
+                var studentAllocations = _context.ProjectAllocations
+                    .Where(pa => pa.StudentId == currentUserId.Value);
+
+                var studentTasks = _context.Tasks
+                    .Where(t => t.ProjectAllocation.StudentId == currentUserId.Value);
+
+                var overview = new DashboardOverviewDto
+                {
+                    TotalProjects = await studentAllocations
+                    .Select(pa => pa.ProjectId)
+                    .Distinct()
+                    .CountAsync(),
+
+                    TotalAllocations = await studentAllocations
+                    .CountAsync(),
+
+
+                    TotalTasks = await studentTasks
+                    .CountAsync(),
+
+                    ProjectsNotStarted = await studentAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.NotStarted),
+
+                    ProjectsInProgress = await studentAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.InProgress),
+
+                    ProjectsCompleted = await studentAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.Completed),
+
+                    TasksLow = await studentTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
+
+                    TasksMedium = await studentTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
+
+                    TasksHigh = await studentTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
+
+                    TasksCritical = await studentTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
+
+                    TasksPending = await studentTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
+
+                    TasksInProgress = await studentTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
+
+                    TasksCompleted = await studentTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed"),
+                };
+
+
+                var recentAllocations = await GetRecentAllocationsQuery()
+                   .Where(pa => pa.StudentId == currentUserId.Value)
+                   .Take(5)
+                   .ToListAsync();
+
+
+                var recentTasks = await GetRecentTasksQuery()
+                    .Where(t => t.StudentId == currentUserId.Value)
+                    .Take(5)
+                    .ToListAsync();
+
+
+                var result = new StudentDashboardDto
+                {
+                    Overview = overview,
+                    RecentAllocations = recentAllocations,
+                    RecentTasks = recentTasks
+                };
+
+
+                return Ok(new ApiResponse<StudentDashboardDto>
+                {
+                    Success = true,
+                    StatusCode = 200,
+                    Data = result,
+                    Message = "Student Dashboard Fetched Successfully."
                 });
             }
-
-            var studentAllocations = _context.ProjectAllocations
-                .Where(pa => pa.StudentId == currentUserId.Value);
-
-            var studentTasks = _context.Tasks
-                .Where(t => t.ProjectAllocation.StudentId == currentUserId.Value);
-
-            var overview = new DashboardOverviewDto
+            catch (Exception ex)
             {
-                TotalProjects = await studentAllocations
-                .Select(pa => pa.ProjectId)
-                .Distinct()
-                .CountAsync(),
-
-                TotalAllocations = await studentAllocations
-                .CountAsync(),
-
-
-                TotalTasks = await studentTasks
-                .CountAsync(),
-
-                ProjectsNotStarted = await studentAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.NotStarted),
-
-                ProjectsInProgress = await studentAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.InProgress),
-
-                ProjectsCompleted = await studentAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.Completed),
-
-                TasksLow = await studentTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
-
-                TasksMedium = await studentTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
-
-                TasksHigh = await studentTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
-
-                TasksCritical = await studentTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
-
-                TasksPending = await studentTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
-
-                TasksInProgress = await studentTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
-
-                TasksCompleted = await studentTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed"),
-            };
-
-
-            var recentAllocations = await GetRecentAllocationsQuery()
-               .Where(pa => pa.StudentId == currentUserId.Value)
-               .Take(5)
-               .ToListAsync();
-
-
-            var recentTasks = await GetRecentTasksQuery()
-                .Where(t => t.StudentId == currentUserId.Value)
-                .Take(5)
-                .ToListAsync();
-
-
-            var result = new StudentDashboardDto
-            {
-                Overview = overview,
-                RecentAllocations = recentAllocations,
-                RecentTasks = recentTasks
-            };
-
-
-            return Ok(new ApiResponse<StudentDashboardDto>
-            {
-                Success = true,
-                StatusCode = 200,
-                Data = result,
-                Message = "Student Dashboard Fetched Successfully."
-            });
-
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
 
@@ -336,107 +366,120 @@ namespace Backend.Controllers
         [Authorize(Roles = "Faculty")]
         public async Task<IActionResult> GetFacultyDashboard()
         {
-            var currentUserId = GetCurrentUserId();
-
-            if (!currentUserId.HasValue)
+            try
             {
-                return Unauthorized(new ApiResponse<object>
+                var currentUserId = GetCurrentUserId();
+
+                if (!currentUserId.HasValue)
                 {
-                    Success = false,
-                    StatusCode = 401,
-                    Errors = new List<string>
+                    return Unauthorized(new ApiResponse<object>
                     {
-                        "Unauthorized."
-                    }
+                        Success = false,
+                        StatusCode = 401,
+                        Errors = new List<string>
+                        {
+                            "Unauthorized."
+                        }
+                    });
+                }
+
+
+                var facultyAllocations = _context.ProjectAllocations
+                    .Where(pa => pa.FacultyId == currentUserId.Value);
+
+
+                var facultyTasks = _context.Tasks
+                    .Where(t => t.ProjectAllocation.FacultyId == currentUserId.Value);
+
+
+                var overview = new DashboardOverviewDto
+                {
+                    TotalProjects = await facultyAllocations
+                    .Select(pa => pa.ProjectId)
+                    .Distinct()
+                    .CountAsync(),
+
+                    TotalAllocations = await facultyAllocations
+                    .CountAsync(),
+
+                    TotalTasks = await facultyTasks.
+                    CountAsync(),
+
+
+                    ProjectsNotStarted = await facultyAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.NotStarted),
+
+                    ProjectsInProgress = await facultyAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.InProgress),
+
+                    ProjectsCompleted = await facultyAllocations
+                    .CountAsync(pa => pa.Project.Status == ProjectStatus.Completed),
+
+                    TasksLow = await facultyTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
+
+                    TasksMedium = await facultyTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
+
+
+                    TasksHigh = await facultyTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
+
+                    TasksCritical = await facultyTasks
+                    .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
+
+                    TasksPending = await facultyTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
+
+                    TasksInProgress = await facultyTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
+
+                    TasksCompleted = await facultyTasks
+                    .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed")
+
+                };
+
+
+                var recentAllocations =
+                    await GetRecentAllocationsQuery()
+                    .Where(pa => pa.FacultyId == currentUserId.Value)
+                    .Take(5)
+                    .ToListAsync();
+
+
+                var recentTasks =
+                    await GetRecentTasksQuery()
+                    .Where(t => t.FacultyId == currentUserId.Value)
+                    .Take(5)
+                    .ToListAsync();
+
+
+                var result = new FacultyDashboardDto
+                {
+                    Overview = overview,
+                    RecentAllocations = recentAllocations,
+                    RecentTasks = recentTasks
+                };
+
+
+                return Ok(new ApiResponse<FacultyDashboardDto>
+                {
+                    Success = true,
+                    StatusCode = 200,
+                    Data = result,
+                    Message = "Faculty Dashboard Fetched Successfully."
                 });
             }
-
-
-            var facultyAllocations = _context.ProjectAllocations
-                .Where(pa => pa.FacultyId == currentUserId.Value);
-
-
-            var facultyTasks = _context.Tasks
-                .Where(t => t.ProjectAllocation.FacultyId == currentUserId.Value);
-
-
-            var overview = new DashboardOverviewDto
+            catch (Exception ex)
             {
-                TotalProjects = await facultyAllocations
-                .Select(pa => pa.ProjectId)
-                .Distinct()
-                .CountAsync(),
-
-                TotalAllocations = await facultyAllocations
-                .CountAsync(),
-
-                TotalTasks = await facultyTasks.
-                CountAsync(),
-
-
-                ProjectsNotStarted = await facultyAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.NotStarted),
-
-                ProjectsInProgress = await facultyAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.InProgress),
-
-                ProjectsCompleted = await facultyAllocations
-                .CountAsync(pa => pa.Project.Status == ProjectStatus.Completed),
-
-                TasksLow = await facultyTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Low"),
-
-                TasksMedium = await facultyTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Medium"),
-
-
-                TasksHigh = await facultyTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "High"),
-
-                TasksCritical = await facultyTasks
-                .CountAsync(t => t.TaskPriority.TaskPriorityName == "Critical"),
-
-                TasksPending = await facultyTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Pending"),
-
-                TasksInProgress = await facultyTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "In Progress"),
-
-                TasksCompleted = await facultyTasks
-                .CountAsync(t => t.TaskStatus.TaskStatusName == "Completed")
-
-            };
-
-
-            var recentAllocations =
-                await GetRecentAllocationsQuery()
-                .Where(pa => pa.FacultyId == currentUserId.Value)
-                .Take(5)
-                .ToListAsync();
-
-
-            var recentTasks =
-                await GetRecentTasksQuery()
-                .Where(t => t.FacultyId == currentUserId.Value)
-                .Take(5)
-                .ToListAsync();
-
-
-            var result = new FacultyDashboardDto
-            {
-                Overview = overview,
-                RecentAllocations = recentAllocations,
-                RecentTasks = recentTasks
-            };
-
-
-            return Ok(new ApiResponse<FacultyDashboardDto>
-            {
-                Success = true,
-                StatusCode = 200,
-                Data = result,
-                Message = "Faculty Dashboard Fetched Successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         #endregion

@@ -8,6 +8,7 @@ using Backend.DTOs.Task;
 using Backend.Helpers;
 using Backend.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -88,218 +89,322 @@ namespace Backend.Controllers
             [FromQuery] int? statusId,
             [FromQuery] int? priorityId)
         {
-            var query = _context.Tasks
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Project)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Student)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Faculty)
-                .Include(t => t.TaskStatus)
-                .Include(t => t.TaskPriority)
-                .AsQueryable();
-
-            if (IsStudent())
+            try
             {
-                var currentUserId = GetCurrentUserId();
-                if (!currentUserId.HasValue) return Unauthorized(new ApiResponse<object> { Success = false, StatusCode = 401, Errors = new List<string> { "Unauthorized." } });
-                query = query.Where(t => t.ProjectAllocation.StudentId == currentUserId.Value);
+                var query = _context.Tasks
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Project)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Student)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Faculty)
+                    .Include(t => t.TaskStatus)
+                    .Include(t => t.TaskPriority)
+                    .AsQueryable();
+
+                if (IsStudent())
+                {
+                    var currentUserId = GetCurrentUserId();
+                    if (!currentUserId.HasValue) return Unauthorized(new ApiResponse<object> { Success = false, StatusCode = 401, Errors = new List<string> { "Unauthorized." } });
+                    query = query.Where(t => t.ProjectAllocation.StudentId == currentUserId.Value);
+                }
+                else
+                {
+                    if (allocationId.HasValue) query = query.Where(t => t.ProjectAllocationId == allocationId.Value);
+                    if (studentId.HasValue) query = query.Where(t => t.ProjectAllocation.StudentId == studentId.Value);
+                    if (facultyId.HasValue) query = query.Where(t => t.ProjectAllocation.FacultyId == facultyId.Value);
+                }
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.Trim().ToLower();
+                    query = query.Where(t => t.TaskTitle.ToLower().Contains(s) || (t.TaskDescription != null && t.TaskDescription.ToLower().Contains(s)));
+                }
+
+                if (statusId.HasValue) query = query.Where(t => t.TaskStatusId == statusId.Value);
+                if (priorityId.HasValue) query = query.Where(t => t.TaskPriorityId == priorityId.Value);
+
+                var tasks = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+                return Ok(new ApiResponse<List<TaskResponseDto>> { Success = true, Data = tasks.Select(MapToDto).ToList() });
             }
-            else
+            catch (Exception ex)
             {
-                if (allocationId.HasValue) query = query.Where(t => t.ProjectAllocationId == allocationId.Value);
-                if (studentId.HasValue) query = query.Where(t => t.ProjectAllocation.StudentId == studentId.Value);
-                if (facultyId.HasValue) query = query.Where(t => t.ProjectAllocation.FacultyId == facultyId.Value);
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
             }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var s = search.Trim().ToLower();
-                query = query.Where(t => t.TaskTitle.ToLower().Contains(s) || (t.TaskDescription != null && t.TaskDescription.ToLower().Contains(s)));
-            }
-
-            if (statusId.HasValue) query = query.Where(t => t.TaskStatusId == statusId.Value);
-            if (priorityId.HasValue) query = query.Where(t => t.TaskPriorityId == priorityId.Value);
-
-            var tasks = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
-            return Ok(new ApiResponse<List<TaskResponseDto>> { Success = true, Data = tasks.Select(MapToDto).ToList() });
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var task = await _context.Tasks
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Project)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Student)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Faculty)
-                .Include(t => t.TaskStatus)
-                .Include(t => t.TaskPriority)
-                .FirstOrDefaultAsync(t => t.Id == id);
+            try
+            {
+                var task = await _context.Tasks
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Project)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Student)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Faculty)
+                    .Include(t => t.TaskStatus)
+                    .Include(t => t.TaskPriority)
+                    .FirstOrDefaultAsync(t => t.Id == id);
 
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
 
-            var accessDenied = await EnsureTaskAccessAsync(task);
-            if (accessDenied != null) return accessDenied;
+                var accessDenied = await EnsureTaskAccessAsync(task);
+                if (accessDenied != null) return accessDenied;
 
-            return Ok(new ApiResponse<TaskResponseDto> { Success = true, Data = MapToDto(task) });
+                return Ok(new ApiResponse<TaskResponseDto> { Success = true, Data = MapToDto(task) });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpPost]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> Create([FromBody] CreateTaskDto dto)
         {
-            var task = new TaskItem
+            try
             {
-                ProjectAllocationId = dto.ProjectAllocationId,
-                TaskTitle = dto.TaskTitle,
-                TaskDescription = dto.TaskDescription,
-                TaskStatusId = dto.TaskStatusId,
-                TaskPriorityId = dto.TaskPriorityId,
-                AssignedScore = dto.AssignedScore,
-                TaskStartDate = dto.TaskStartDate,
-                TaskDueDate = dto.TaskDueDate,
-                FacultyRemarks = dto.FacultyRemarks,
-                TaskAssignedDate = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow
-            };
+                var task = new TaskItem
+                {
+                    ProjectAllocationId = dto.ProjectAllocationId,
+                    TaskTitle = dto.TaskTitle,
+                    TaskDescription = dto.TaskDescription,
+                    TaskStatusId = dto.TaskStatusId,
+                    TaskPriorityId = dto.TaskPriorityId,
+                    AssignedScore = dto.AssignedScore,
+                    TaskStartDate = dto.TaskStartDate,
+                    TaskDueDate = dto.TaskDueDate,
+                    FacultyRemarks = dto.FacultyRemarks,
+                    TaskAssignedDate = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _context.Tasks.Add(task);
-            await _context.SaveChangesAsync();
+                _context.Tasks.Add(task);
+                await _context.SaveChangesAsync();
 
-            var created = await _context.Tasks
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Project)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Student)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Faculty)
-                .Include(t => t.TaskStatus)
-                .Include(t => t.TaskPriority)
-                .FirstAsync(t => t.Id == task.Id);
+                var created = await _context.Tasks
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Project)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Student)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Faculty)
+                    .Include(t => t.TaskStatus)
+                    .Include(t => t.TaskPriority)
+                    .FirstAsync(t => t.Id == task.Id);
 
-            return CreatedAtAction(nameof(GetById), new { id = task.Id }, new ApiResponse<TaskResponseDto>
+                return CreatedAtAction(nameof(GetById), new { id = task.Id }, new ApiResponse<TaskResponseDto>
+                {
+                    Success = true,
+                    StatusCode = 201,
+                    Data = MapToDto(created),
+                    Message = "Task created successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                StatusCode = 201,
-                Data = MapToDto(created),
-                Message = "Task created successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateTaskDto dto)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
+            try
+            {
+                var task = await _context.Tasks.FindAsync(id);
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
 
-            task.TaskTitle = dto.TaskTitle;
-            task.TaskDescription = dto.TaskDescription;
-            task.TaskStatusId = dto.TaskStatusId;
-            task.TaskPriorityId = dto.TaskPriorityId;
-            task.AssignedScore = dto.AssignedScore;
-            task.EarnedScore = dto.EarnedScore;
-            task.TaskStartDate = dto.TaskStartDate;
-            task.TaskDueDate = dto.TaskDueDate;
-            task.TaskCompletedDate = dto.TaskCompletedDate;
-            task.NextFollowUpDate = dto.NextFollowUpDate;
-            task.FacultyRemarks = dto.FacultyRemarks;
-            task.StudentRemarks = dto.StudentRemarks;
-            task.UpdatedAt = DateTime.UtcNow;
+                task.TaskTitle = dto.TaskTitle;
+                task.TaskDescription = dto.TaskDescription;
+                task.TaskStatusId = dto.TaskStatusId;
+                task.TaskPriorityId = dto.TaskPriorityId;
+                task.AssignedScore = dto.AssignedScore;
+                task.EarnedScore = dto.EarnedScore;
+                task.TaskStartDate = dto.TaskStartDate;
+                task.TaskDueDate = dto.TaskDueDate;
+                task.TaskCompletedDate = dto.TaskCompletedDate;
+                task.NextFollowUpDate = dto.NextFollowUpDate;
+                task.FacultyRemarks = dto.FacultyRemarks;
+                task.StudentRemarks = dto.StudentRemarks;
+                task.UpdatedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
 
-            var updated = await _context.Tasks
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Project)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Student)
-                .Include(t => t.ProjectAllocation)
-                    .ThenInclude(pa => pa.Faculty)
-                .Include(t => t.TaskStatus)
-                .Include(t => t.TaskPriority)
-                .FirstAsync(t => t.Id == task.Id);
+                var updated = await _context.Tasks
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Project)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Student)
+                    .Include(t => t.ProjectAllocation)
+                        .ThenInclude(pa => pa.Faculty)
+                    .Include(t => t.TaskStatus)
+                    .Include(t => t.TaskPriority)
+                    .FirstAsync(t => t.Id == task.Id);
 
-            return Ok(new ApiResponse<TaskResponseDto> { Success = true, Data = MapToDto(updated), Message = "Task updated successfully." });
+                return Ok(new ApiResponse<TaskResponseDto> { Success = true, Data = MapToDto(updated), Message = "Task updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateTaskStatusDto dto)
         {
-            var task = await _context.Tasks
-                .Include(t => t.TaskStatus)
-                .Include(t => t.ProjectAllocation)
-                .FirstOrDefaultAsync(t => t.Id == id);
-
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
-
-            var accessDenied = await EnsureTaskAccessAsync(task);
-            if (accessDenied != null) return accessDenied;
-
-            task.TaskStatusId = dto.TaskStatusId;
-            task.UpdatedAt = DateTime.UtcNow;
-
-            // If completed, set completed date
-            var statusLookup = await _context.TaskStatuses.FindAsync(dto.TaskStatusId);
-            if (statusLookup != null && statusLookup.TaskStatusName == "Completed")
+            try
             {
-                task.TaskCompletedDate = DateTime.UtcNow;
-            }
+                var task = await _context.Tasks
+                    .Include(t => t.TaskStatus)
+                    .Include(t => t.ProjectAllocation)
+                    .FirstOrDefaultAsync(t => t.Id == id);
 
-            await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<object> { Success = true, Message = "Task status updated successfully." });
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
+
+                var accessDenied = await EnsureTaskAccessAsync(task);
+                if (accessDenied != null) return accessDenied;
+
+                task.TaskStatusId = dto.TaskStatusId;
+                task.UpdatedAt = DateTime.UtcNow;
+
+                // If completed, set completed date
+                var statusLookup = await _context.TaskStatuses.FindAsync(dto.TaskStatusId);
+                if (statusLookup != null && statusLookup.TaskStatusName == "Completed")
+                {
+                    task.TaskCompletedDate = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new ApiResponse<object> { Success = true, Message = "Task status updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpPatch("{id}/earned-score")]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> UpdateEarnedScore(int id, [FromBody] UpdateEarnedScoreDto dto)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
-
-            task.EarnedScore = dto.EarnedScore;
-            if (!string.IsNullOrEmpty(dto.FacultyRemarks))
+            try
             {
-                task.FacultyRemarks = dto.FacultyRemarks;
-            }
-            task.UpdatedAt = DateTime.UtcNow;
+                var task = await _context.Tasks.FindAsync(id);
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
 
-            await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<object> { Success = true, Message = "Earned score updated successfully." });
+                task.EarnedScore = dto.EarnedScore;
+                if (!string.IsNullOrEmpty(dto.FacultyRemarks))
+                {
+                    task.FacultyRemarks = dto.FacultyRemarks;
+                }
+                task.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                return Ok(new ApiResponse<object> { Success = true, Message = "Earned score updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpPatch("{id}/student-remarks")]
         public async Task<IActionResult> UpdateStudentRemarks(int id, [FromBody] UpdateStudentRemarksDto dto)
         {
-            var task = await _context.Tasks
-                .Include(t => t.ProjectAllocation)
-                .FirstOrDefaultAsync(t => t.Id == id);
+            try
+            {
+                var task = await _context.Tasks
+                    .Include(t => t.ProjectAllocation)
+                    .FirstOrDefaultAsync(t => t.Id == id);
 
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
 
-            var accessDenied = await EnsureTaskAccessAsync(task);
-            if (accessDenied != null) return accessDenied;
+                var accessDenied = await EnsureTaskAccessAsync(task);
+                if (accessDenied != null) return accessDenied;
 
-            task.StudentRemarks = dto.StudentRemarks;
-            task.UpdatedAt = DateTime.UtcNow;
+                task.StudentRemarks = dto.StudentRemarks;
+                task.UpdatedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<object> { Success = true, Message = "Student remarks updated successfully." });
+                await _context.SaveChangesAsync();
+                return Ok(new ApiResponse<object> { Success = true, Message = "Student remarks updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
+            try
+            {
+                var task = await _context.Tasks.FindAsync(id);
+                if (task == null) return NotFound(new ApiResponse<object> { Success = false, StatusCode = 404, Errors = new List<string> { "Task not found." } });
 
-            _context.Tasks.Remove(task);
-            await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<object> { Success = true, Message = "Task deleted successfully." });
+                _context.Tasks.Remove(task);
+                await _context.SaveChangesAsync();
+                return Ok(new ApiResponse<object> { Success = true, Message = "Task deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
     }
 }

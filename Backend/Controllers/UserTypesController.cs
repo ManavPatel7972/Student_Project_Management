@@ -22,22 +22,34 @@ namespace Backend.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var userTypes = await _context.UserTypes.ToListAsync();
-            var dtos = userTypes.Select(ut => new UserTypeResponseDto
+            try
             {
-                Id = ut.Id,
-                UserTypeName = ut.UserTypeName,
-                Description = ut.Description
-            }).ToList();
+                var userTypes = await _context.UserTypes.ToListAsync();
+                var dtos = userTypes.Select(ut => new UserTypeResponseDto
+                {
+                    Id = ut.Id,
+                    UserTypeName = ut.UserTypeName,
+                    Description = ut.Description
+                }).ToList();
 
-            return Ok(new ApiResponse<List<UserTypeResponseDto>>
+                return Ok(new ApiResponse<List<UserTypeResponseDto>>
+                {
+                    Success = true,
+                    Data = dtos,
+                    Message = "All UserTypes Fetched Successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Data = dtos,
-                Message = "All UserTypes Fetched Successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
-
         #endregion
     }
 }

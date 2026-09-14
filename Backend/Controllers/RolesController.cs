@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -5,6 +6,7 @@ using Backend.Data;
 using Backend.DTOs.Role;
 using Backend.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,147 +39,205 @@ namespace Backend.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var roles = await _context.Roles
-                .Include(r => r.UserRoles)
-                .ToListAsync();
-
-            return Ok(new ApiResponse<List<RoleResponseDto>>
+            try
             {
-                Success = true,
-                Data = roles.Select(MapToDto).ToList(),
-                Message = "All Roles Fetched Successfully."
-            });
+                var roles = await _context.Roles
+                    .Include(r => r.UserRoles)
+                    .ToListAsync();
 
+                return Ok(new ApiResponse<List<RoleResponseDto>>
+                {
+                    Success = true,
+                    Data = roles.Select(MapToDto).ToList(),
+                    Message = "All Roles Fetched Successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region GetRoleByID
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var role = await _context.Roles
-                .Include(r => r.UserRoles)
-                .FirstOrDefaultAsync(r => r.Id == id);
-
-            if (role == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Role not found." }
-            });
+                var role = await _context.Roles
+                    .Include(r => r.UserRoles)
+                    .FirstOrDefaultAsync(r => r.Id == id);
 
-            return Ok(new ApiResponse<RoleResponseDto>
+                if (role == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Role not found." }
+                });
+
+                return Ok(new ApiResponse<RoleResponseDto>
+                {
+                    Success = true,
+                    Data = MapToDto(role),
+                    Message = "Role By Id Fetched Successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Data = MapToDto(role),
-                Message = "Role By Id Fetched Successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region CreateRole
         [HttpPost]
         public async Task<IActionResult> Create(CreateRoleDto dto)
         {
-            if (await _context.Roles.AnyAsync(r => r.RoleName == dto.RoleName))
+            try
             {
-                return BadRequest(new ApiResponse<object>
+                if (await _context.Roles.AnyAsync(r => r.RoleName == dto.RoleName))
                 {
-                    Success = false,
-                    StatusCode = 400,
-                    Errors = new List<string> { "Role name already exists." }
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        StatusCode = 400,
+                        Errors = new List<string> { "Role name already exists." }
+                    });
+                }
+
+                var role = new Role
+                {
+                    RoleName = dto.RoleName,
+                    Description = dto.Description
+                };
+
+                _context.Roles.Add(role);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetById), new { id = role.Id }, new ApiResponse<RoleResponseDto>
+                {
+                    Success = true,
+                    StatusCode = 201,
+                    Data = MapToDto(role),
+                    Message = "Role created successfully."
                 });
             }
-
-            var role = new Role
+            catch (Exception ex)
             {
-                RoleName = dto.RoleName,
-                Description = dto.Description
-            };
-
-            _context.Roles.Add(role);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetById), new { id = role.Id }, new ApiResponse<RoleResponseDto>
-            {
-                Success = true,
-                StatusCode = 201,
-                Data = MapToDto(role),
-                Message = "Role created successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region UpdateRole
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, UpdateRoleDto dto)
         {
-            var role = await _context.Roles.FindAsync(id);
-            if (role == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Role not found." }
-            });
+                var role = await _context.Roles.FindAsync(id);
+                if (role == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Role not found." }
+                });
 
-            role.RoleName = dto.RoleName;
-            role.Description = dto.Description;
-            await _context.SaveChangesAsync();
+                role.RoleName = dto.RoleName;
+                role.Description = dto.Description;
+                await _context.SaveChangesAsync();
 
-            var updatedRole = await _context.Roles
-                .Include(r => r.UserRoles)
-                .FirstOrDefaultAsync(r => r.Id == id);
+                var updatedRole = await _context.Roles
+                    .Include(r => r.UserRoles)
+                    .FirstOrDefaultAsync(r => r.Id == id);
 
-            return Ok(new ApiResponse<RoleResponseDto>
+                return Ok(new ApiResponse<RoleResponseDto>
+                {
+                    Success = true,
+                    Data = MapToDto(updatedRole ?? role),
+                    Message = "Role updated successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Data = MapToDto(updatedRole ?? role),
-                Message = "Role updated successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region DeleteRole
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var role = await _context.Roles.FindAsync(id);
-
-            if (role == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Role not found." }
-            });
+                var role = await _context.Roles.FindAsync(id);
 
-            var rolePermission = await _context.RolePermissions
-                .Where(rp => rp.RoleId == id)
-                .ToListAsync();
+                if (role == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Role not found." }
+                });
 
-            _context.RolePermissions.RemoveRange(rolePermission);
+                var rolePermission = await _context.RolePermissions
+                    .Where(rp => rp.RoleId == id)
+                    .ToListAsync();
 
-            var userRoles = await _context.UserRoles
-                .Where(ur => ur.RoleId == id)
-                .ToListAsync();
+                _context.RolePermissions.RemoveRange(rolePermission);
 
+                var userRoles = await _context.UserRoles
+                    .Where(ur => ur.RoleId == id)
+                    .ToListAsync();
 
-            _context.UserRoles.RemoveRange(userRoles);
+                _context.UserRoles.RemoveRange(userRoles);
 
-            _context.Roles.Remove(role);
+                _context.Roles.Remove(role);
 
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
 
-            return Ok(new ApiResponse<object>
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Role deleted successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Message = "Role deleted successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
     }
 }

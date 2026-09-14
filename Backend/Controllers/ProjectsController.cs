@@ -1,8 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Backend.Data;
 using Backend.DTOs.Project;
 using Backend.Enums;
 using Backend.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,205 +42,275 @@ namespace Backend.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] ProjectStatus? status)
         {
-            var query = _context.Projects
-                .Include(p => p.Allocations)
-                .AsQueryable();
-
-            if (IsStudent())
+            try
             {
-                var currentUserId = GetCurrentUserId();
+                var query = _context.Projects
+                    .Include(p => p.Allocations)
+                    .AsQueryable();
 
-                if (!currentUserId.HasValue)
+                if (IsStudent())
                 {
-                    return Unauthorized(new ApiResponse<object>
+                    var currentUserId = GetCurrentUserId();
+
+                    if (!currentUserId.HasValue)
                     {
-                        Success = false,
-                        StatusCode = 401,
-                        Errors = new List<string> { "Unauthorized." }
-                    });
+                        return Unauthorized(new ApiResponse<object>
+                        {
+                            Success = false,
+                            StatusCode = 401,
+                            Errors = new List<string> { "Unauthorized." }
+                        });
+                    }
+
+                    query = query.Where(p => p.Allocations.Any(a => a.StudentId == currentUserId.Value));
                 }
 
-                query = query.Where(p => p.Allocations.Any(a => a.StudentId == currentUserId.Value));
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.Trim().ToLower();
+                    query = query.Where(p => p.ProjectTitle.ToLower().Contains(s) || (p.Description != null && p.Description.ToLower().Contains(s)));
+                }
+
+                if (status.HasValue)
+                {
+                    query = query.Where(p => p.Status == status.Value);
+                }
+
+                var projects = await query.OrderByDescending(p => p.CreatedAt).ToListAsync();
+
+                return Ok(new ApiResponse<List<ProjectResponseDto>>
+                {
+                    Success = true,
+                    Data = projects.Select(MapToDto).ToList()
+                });
             }
-
-
-            if (!string.IsNullOrWhiteSpace(search))
+            catch (Exception ex)
             {
-                var s = search.Trim().ToLower();
-                query = query.Where(p => p.ProjectTitle.ToLower().Contains(s) || (p.Description != null && p.Description.ToLower().Contains(s)));
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
             }
-
-            if (status.HasValue)
-            {
-                query = query.Where(p => p.Status == status.Value);
-            }
-
-            var projects = await query.OrderByDescending(p => p.CreatedAt).ToListAsync();
-
-            return Ok(new ApiResponse<List<ProjectResponseDto>>
-            {
-                Success = true,
-                Data = projects.Select(MapToDto).ToList()
-            });
         }
         #endregion
-
 
         #region GetProjectById
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var project = await _context.Projects
-                .Include(p => p.Allocations)
-                .ThenInclude(pa => pa.Student)
-                .Include(p => p.Allocations)
-                .ThenInclude(pa => pa.Faculty)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (project == null)
+            try
             {
-                return NotFound(new ApiResponse<object>
-                {
-                    Success = false,
-                    StatusCode = 404,
-                    Errors = new List<string> { "Project not found." }
-                });
-            }
+                var project = await _context.Projects
+                    .Include(p => p.Allocations)
+                    .ThenInclude(pa => pa.Student)
+                    .Include(p => p.Allocations)
+                    .ThenInclude(pa => pa.Faculty)
+                    .FirstOrDefaultAsync(p => p.Id == id);
 
-            if (IsStudent())
-            {
-                var currentUserId = GetCurrentUserId();
-                if (!currentUserId.HasValue ||
-                    !project.Allocations.Any(a => a.StudentId == currentUserId.Value))
+                if (project == null)
                 {
-                    return StatusCode(403, new ApiResponse<object>
+                    return NotFound(new ApiResponse<object>
                     {
                         Success = false,
-                        StatusCode = 403,
-                        Errors = new List<string> { "Access denied." }
+                        StatusCode = 404,
+                        Errors = new List<string> { "Project not found." }
                     });
                 }
+
+                if (IsStudent())
+                {
+                    var currentUserId = GetCurrentUserId();
+                    if (!currentUserId.HasValue ||
+                        !project.Allocations.Any(a => a.StudentId == currentUserId.Value))
+                    {
+                        return StatusCode(403, new ApiResponse<object>
+                        {
+                            Success = false,
+                            StatusCode = 403,
+                            Errors = new List<string> { "Access denied." }
+                        });
+                    }
+                }
+
+                return Ok(new ApiResponse<ProjectResponseDto>
+                {
+                    Success = true,
+                    Data = MapToDto(project)
+                });
             }
-
-            return Ok(new ApiResponse<ProjectResponseDto>
+            catch (Exception ex)
             {
-                Success = true,
-                Data = MapToDto(project)
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
-
         #endregion
-
 
         #region CreateProject
         [HttpPost]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> Create(CreateProjectDto dto)
         {
-            var project = new ProjectMaster
+            try
             {
-                ProjectTitle = dto.ProjectTitle,
-                Description = dto.Description,
-                Status = dto.Status,
-                CreatedAt = DateTime.UtcNow
-            };
+                var project = new ProjectMaster
+                {
+                    ProjectTitle = dto.ProjectTitle,
+                    Description = dto.Description,
+                    Status = dto.Status,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _context.Projects.Add(project);
-            await _context.SaveChangesAsync();
+                _context.Projects.Add(project);
+                await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = project.Id }, new ApiResponse<ProjectResponseDto>
+                return CreatedAtAction(nameof(GetById), new { id = project.Id }, new ApiResponse<ProjectResponseDto>
+                {
+                    Success = true,
+                    StatusCode = 201,
+                    Data = MapToDto(project),
+                    Message = "Project created successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                StatusCode = 201,
-                Data = MapToDto(project),
-                Message = "Project created successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
-
         #endregion
-
 
         #region UpdateProject(Put)
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> Update(int id, UpdateProjectDto dto)
         {
-            var project = await _context.Projects.FindAsync(id);
-
-            if (project == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Project not found." }
-            });
+                var project = await _context.Projects.FindAsync(id);
 
-            project.ProjectTitle = dto.ProjectTitle;
-            project.Description = dto.Description;
-            project.Status = dto.Status;
-            project.UpdatedAt = DateTime.Now;
+                if (project == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Project not found." }
+                });
 
-            await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<ProjectResponseDto>
+                project.ProjectTitle = dto.ProjectTitle;
+                project.Description = dto.Description;
+                project.Status = dto.Status;
+                project.UpdatedAt = DateTime.Now;
+
+                await _context.SaveChangesAsync();
+                return Ok(new ApiResponse<ProjectResponseDto>
+                {
+                    Success = true,
+                    Data = MapToDto(project),
+                    Message = "Project updated successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Data = MapToDto(project),
-                Message = "Project updated successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region UpdateStatusOnly
         [HttpPatch("{id}/status")]
         [Authorize(Roles = "Admin,Faculty")]
         public async Task<IActionResult> UpdateStatus(int id, UpdateProjectStatusDto dto)
         {
-            var project = await _context.Projects.FindAsync(id);
-
-            if (project == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Project not found." }
-            });
+                var project = await _context.Projects.FindAsync(id);
 
-            project.Status = dto.Status;
-            project.UpdatedAt = DateTime.Now;
+                if (project == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Project not found." }
+                });
 
-            await _context.SaveChangesAsync();
+                project.Status = dto.Status;
+                project.UpdatedAt = DateTime.Now;
 
-            return Ok(new ApiResponse<object>
+                await _context.SaveChangesAsync();
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Project status updated.",
+                    Data = new { Status = project.Status.ToString() }
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Message = "Project status updated.",
-                Data = new { Status = project.Status.ToString() }
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
-
 
         #region DeleteProject
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var project = await _context.Projects.FindAsync(id);
-
-            if (project == null) return NotFound(new ApiResponse<object>
+            try
             {
-                Success = false,
-                StatusCode = 404,
-                Errors = new List<string> { "Project not found." }
-            });
+                var project = await _context.Projects.FindAsync(id);
 
-            _context.Projects.Remove(project);
-            await _context.SaveChangesAsync();
+                if (project == null) return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = 404,
+                    Errors = new List<string> { "Project not found." }
+                });
 
-            return Ok(new ApiResponse<object>
+                _context.Projects.Remove(project);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "Project deleted successfully."
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Message = "Project deleted successfully."
-            });
+                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
+                {
+                    Success = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "An error occurred while processing your request.",
+                    Errors = new List<string> { ex.Message }
+                });
+            }
         }
         #endregion
     }
