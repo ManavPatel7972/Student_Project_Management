@@ -1,5 +1,7 @@
 using Backend.Data;
 using Backend.Helpers;
+using Backend.Models;
+using Backend.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -23,6 +25,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 //2. Register Helpers & FluentValidation
 builder.Services.AddScoped<JwtHelper>();
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
+builder.Services.AddScoped<IProfileImageService, CloudinaryProfileImageService>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 
@@ -201,7 +205,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowReactApp");
 
 // app.UseHttpsRedirection();
-app.UseStaticFiles(); // For uploaded profile photos
+app.UseStaticFiles(); // Static assets, if the app has any
 
 app.UseAuthentication();
 app.UseAuthorization();

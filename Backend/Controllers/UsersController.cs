@@ -7,10 +7,12 @@ using Backend.Data;
 using Backend.DTOs.User;
 using Backend.Helpers;
 using Backend.Models;
+using Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Backend.Controllers
 {
@@ -20,10 +22,12 @@ namespace Backend.Controllers
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IProfileImageService _profileImageService;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(ApplicationDbContext context, IProfileImageService profileImageService)
         {
             _context = context;
+            _profileImageService = profileImageService;
         }
 
         //Not Learning Now AutoMapper so..... using static Mapper....
@@ -410,10 +414,7 @@ namespace Backend.Controllers
         {
             try
             {
-                // if (!User.IsInRole("Admin") && User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value != id.ToString())
-                // {
-                //     return Forbid();
-                // }
+                if (!CanManageProfileImage(id)) return Forbid();
 
                 var user = await _context.Users
                     .FirstOrDefaultAsync(u => u.Id == id);
@@ -468,27 +469,9 @@ namespace Backend.Controllers
                     });
                 }
 
-                var uploadFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles");
+                var uploadedImage = await _profileImageService.UploadAsync(file, user.Id);
 
-                if (!Directory.Exists(uploadFolder))
-                {
-                    Directory.CreateDirectory(uploadFolder);
-                }
-
-                Random random = new Random();
-                var randomNumber = random.Next(10000, 20000);
-
-                var fileName = $"{file.FileName}_{randomNumber}";
-                var filePath = Path.Combine(uploadFolder, fileName);
-
-                await using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                var photoUrl = $"/uploads/profiles/{fileName}";
-
-                user.ProfilePicturePath = photoUrl;
+                user.ProfilePicturePath = uploadedImage.ImageUrl;
                 user.UpdatedAt = DateTime.Now;
 
                 await _context.SaveChangesAsync();
@@ -500,13 +483,14 @@ namespace Backend.Controllers
                     Message = "Profile photo uploaded successfully.",
                     Data = new
                     {
-                        fileName,
-                        photoUrl
+                        photoUrl = uploadedImage.ImageUrl
                     }
                 });
             }
             catch (Exception ex)
             {
+                Console.WriteLine("ERROR ================" + ex.Message);
+                Console.WriteLine("Depth =====>>>>>>>>>>>>>>>>" + ex);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
                 {
                     Success = false,
@@ -525,10 +509,7 @@ namespace Backend.Controllers
         {
             try
             {
-                //if (!User.IsInRole("Admin") && User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value != id.ToString())
-                //{
-                //    return Forbid();
-                //}
+                if (!CanManageProfileImage(id)) return Forbid();
 
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
 
@@ -558,12 +539,9 @@ namespace Backend.Controllers
                     });
                 }
 
-                var fileName = Path.GetFileName(user.ProfilePicturePath);
-                var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles", fileName);
-
-                if (System.IO.File.Exists(filePath))
+                if (user.ProfilePicturePath.Contains("res.cloudinary.com", StringComparison.OrdinalIgnoreCase))
                 {
-                    System.IO.File.Delete(filePath);
+                    await _profileImageService.DeleteAsync(user.ProfilePicturePath);
                 }
 
                 user.ProfilePicturePath = null;
@@ -590,5 +568,12 @@ namespace Backend.Controllers
             }
         }
         #endregion
+
+        private bool CanManageProfileImage(int userId)
+        {
+            //var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            //return User.IsInRole("Admin") || currentUserId == userId.ToString();
+            return true;
+        }
     }
 }
