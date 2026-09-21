@@ -1,23 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   getAllocationsApi,
   createAllocationApi,
   updateAllocationApi,
   deleteAllocationApi,
-} from '../../api/allocations';
-import { getProjectsApi } from '../../api/projects';
-import { getUsersApi } from '../../api/users';
-import { Modal } from '../../components/common/Modal';
-import { Badge } from '../../components/common/Badge';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { Plus, Edit2, Trash2, Briefcase, GraduationCap, Calendar, Award } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useAuth } from '../../context/AuthContext';
+} from "../../api/allocations";
+import { getProjectsApi } from "../../api/projects";
+import { getUsersApi } from "../../api/users";
+import { Modal } from "../../components/common/Modal";
+import { Badge } from "../../components/common/Badge";
+import { LoadingSpinner } from "../../components/common/LoadingSpinner";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Briefcase,
+  GraduationCap,
+  Calendar,
+  Award,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { useAuth } from "../../context/AuthContext";
 
 export const AllocationsPage = () => {
   const { hasRole } = useAuth();
-  const isStudent = hasRole('Student');
-  const canManage = hasRole(['Admin', 'Faculty']);
+  const isStudent = hasRole("Student");
+  const canManage = hasRole(["Admin", "Faculty"]);
   const [allocations, setAllocations] = useState([]);
   const [projects, setProjects] = useState([]);
   const [students, setStudents] = useState([]);
@@ -28,12 +36,14 @@ export const AllocationsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState(null);
   const [formData, setFormData] = useState({
-    projectId: '',
-    studentId: '',
-    facultyId: '',
-    projectStartDate: new Date().toISOString().split('T')[0],
-    projectEndDate: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
-    overAllGrade: 'A',
+    projectId: "",
+    studentId: "",
+    facultyId: "",
+    projectStartDate: new Date().toISOString().split("T")[0],
+    projectEndDate: new Date(Date.now() + 90 * 86400000)
+      .toISOString()
+      .split("T")[0],
+    overAllGrade: "A",
   });
 
   useEffect(() => {
@@ -53,7 +63,7 @@ export const AllocationsPage = () => {
       setStudents(studsData);
       setFacultyList(facsData);
     } catch (err) {
-      console.error('Failed to load lookup data:', err);
+      console.error("Failed to load lookup data:", err);
     }
   };
 
@@ -63,7 +73,7 @@ export const AllocationsPage = () => {
       const data = await getAllocationsApi();
       setAllocations(data);
     } catch (err) {
-      toast.error('Failed to load allocations.');
+      toast.error("Failed to load allocations.");
     } finally {
       setLoading(false);
     }
@@ -72,12 +82,14 @@ export const AllocationsPage = () => {
   const handleOpenCreate = () => {
     setEditingAllocation(null);
     setFormData({
-      projectId: projects[0]?.id || '',
-      studentId: students[0]?.id || '',
-      facultyId: facultyList[0]?.id || '',
-      projectStartDate: new Date().toISOString().split('T')[0],
-      projectEndDate: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
-      overAllGrade: '',
+      projectId: projects[0]?.id || "",
+      studentId: students[0]?.id || "",
+      facultyId: facultyList[0]?.id || "",
+      projectStartDate: new Date().toISOString().split("T")[0],
+      projectEndDate: new Date(Date.now() + 90 * 86400000)
+        .toISOString()
+        .split("T")[0],
+      overAllGrade: "",
     });
     setIsModalOpen(true);
   };
@@ -88,9 +100,13 @@ export const AllocationsPage = () => {
       projectId: allocation.projectId,
       studentId: allocation.studentId,
       facultyId: allocation.facultyId,
-      projectStartDate: allocation.projectStartDate ? allocation.projectStartDate.split('T')[0] : '',
-      projectEndDate: allocation.projectEndDate ? allocation.projectEndDate.split('T')[0] : '',
-      overAllGrade: allocation.overAllGrade || '',
+      projectStartDate: allocation.projectStartDate
+        ? allocation.projectStartDate.split("T")[0]
+        : "",
+      projectEndDate: allocation.projectEndDate
+        ? allocation.projectEndDate.split("T")[0]
+        : "",
+      overAllGrade: allocation.overAllGrade || "",
     });
     setIsModalOpen(true);
   };
@@ -104,7 +120,7 @@ export const AllocationsPage = () => {
           projectEndDate: formData.projectEndDate,
           overAllGrade: formData.overAllGrade || null,
         });
-        toast.success('Allocation updated successfully!');
+        toast.success("Allocation updated successfully!");
       } else {
         await createAllocationApi({
           projectId: parseInt(formData.projectId),
@@ -113,23 +129,28 @@ export const AllocationsPage = () => {
           projectStartDate: formData.projectStartDate,
           projectEndDate: formData.projectEndDate,
         });
-        toast.success('Student allocated to project!');
+        toast.success("Student allocated to project!");
       }
       setIsModalOpen(false);
       fetchAllocations();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving allocation.');
+      toast.error(err.response?.data?.message || "Error saving allocation.");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this project allocation?')) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to remove this project allocation?",
+      )
+    )
+      return;
     try {
       await deleteAllocationApi(id);
-      toast.success('Allocation deleted.');
+      toast.success("Allocation deleted.");
       fetchAllocations();
     } catch (err) {
-      toast.error('Failed to delete allocation.');
+      toast.error("Failed to delete allocation.");
     }
   };
 
@@ -139,12 +160,12 @@ export const AllocationsPage = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-white">
-            {isStudent ? 'My Project Allocations' : 'Project Allocations'}
+            {isStudent ? "My Project Allocations" : "Project Allocations"}
           </h1>
           <p className="text-xs text-slate-400">
             {isStudent
-              ? 'View your assigned projects, faculty guide, and progress'
-              : 'Map students to projects and assign faculty guides'}
+              ? "View your assigned projects, faculty guide, and progress"
+              : "Map students to projects and assign faculty guides"}
           </p>
         </div>
         {canManage && (
@@ -161,8 +182,111 @@ export const AllocationsPage = () => {
       {loading ? (
         <LoadingSpinner text="Fetching allocations..." />
       ) : (
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden backdrop-blur-xl">
-          <div className="overflow-x-auto">
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-800/60 backdrop-blur-xl">
+          <div className="space-y-3 p-3 md:hidden">
+            {allocations.map((a) => (
+              <div
+                key={a.id}
+                className="rounded-xl border border-slate-700/60 bg-slate-950/35 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-start gap-2 break-words font-bold text-white">
+                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />
+                      {a.projectTitle}
+                    </p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase text-slate-500">
+                      {a.projectStatus}
+                    </p>
+                  </div>
+                  <Badge variant={a.overAllGrade ? "success" : "neutral"}>
+                    {a.overAllGrade || "Not Graded"}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  {!isStudent && (
+                    <div>
+                      <p className="text-[10px] uppercase text-slate-500">
+                        Student
+                      </p>
+                      <p className="mt-1 break-words font-semibold text-slate-200">
+                        {a.studentName}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {a.studentCode || "No Code"}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-500">
+                      Faculty guide
+                    </p>
+                    <p className="mt-1 break-words font-semibold text-slate-200">
+                      {a.facultyName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-500">
+                      Duration
+                    </p>
+                    <p className="mt-1 text-slate-300">
+                      {a.projectStartDate
+                        ? new Date(a.projectStartDate).toLocaleDateString()
+                        : "-"}{" "}
+                      -{" "}
+                      {a.projectEndDate
+                        ? new Date(a.projectEndDate).toLocaleDateString()
+                        : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase text-slate-500">
+                      Progress
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full border border-slate-800 bg-slate-950">
+                        <div
+                          className="h-full rounded-full bg-indigo-500"
+                          style={{ width: `${a.progressPercentage}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold">
+                        {Math.round(a.progressPercentage)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {canManage && (
+                  <div className="mt-4 flex justify-end gap-1 border-t border-slate-800 pt-3">
+                    <button
+                      onClick={() => handleOpenEdit(a)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-900 hover:text-indigo-400"
+                      title="Edit Allocation / Grade"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    {hasRole("Admin") && (
+                      <button
+                        onClick={() => handleDelete(a.id)}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-900 hover:text-rose-400"
+                        title="Delete Allocation"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {allocations.length === 0 && (
+              <p className="p-5 text-center text-slate-500">
+                {isStudent
+                  ? "You have no project allocations yet. Contact your faculty guide."
+                  : "No project allocations found."}
+              </p>
+            )}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="text-[11px] font-bold uppercase text-slate-400 border-b border-slate-700/60 bg-slate-950/40">
@@ -177,7 +301,10 @@ export const AllocationsPage = () => {
               </thead>
               <tbody className="divide-y divide-slate-800 text-xs text-slate-300">
                 {allocations.map((a) => (
-                  <tr key={a.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr
+                    key={a.id}
+                    className="hover:bg-slate-800/40 transition-colors"
+                  >
                     <td className="p-4">
                       <p className="font-bold text-white flex items-center gap-2">
                         <Briefcase className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -193,17 +320,26 @@ export const AllocationsPage = () => {
                           <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
                           {a.studentName}
                         </p>
-                        <p className="text-[11px] text-slate-400">{a.studentCode || 'No Code'}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {a.studentCode || "No Code"}
+                        </p>
                       </td>
                     )}
-                    <td className="p-4 font-medium text-slate-300">{a.facultyName}</td>
+                    <td className="p-4 font-medium text-slate-300">
+                      {a.facultyName}
+                    </td>
                     <td className="p-4">
                       <p className="text-[11px] text-slate-300 flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-slate-500" />
-                        {a.projectStartDate ? new Date(a.projectStartDate).toLocaleDateString() : '-'}
+                        {a.projectStartDate
+                          ? new Date(a.projectStartDate).toLocaleDateString()
+                          : "-"}
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        to {a.projectEndDate ? new Date(a.projectEndDate).toLocaleDateString() : '-'}
+                        to{" "}
+                        {a.projectEndDate
+                          ? new Date(a.projectEndDate).toLocaleDateString()
+                          : "-"}
                       </p>
                     </td>
                     <td className="p-4">
@@ -215,13 +351,14 @@ export const AllocationsPage = () => {
                           ></div>
                         </div>
                         <span className="text-[10px] font-bold">
-                          {a.totalCompletedTasks}/{a.totalTasksGiven} ({Math.round(a.progressPercentage)}%)
+                          {a.totalCompletedTasks}/{a.totalTasksGiven} (
+                          {Math.round(a.progressPercentage)}%)
                         </span>
                       </div>
                     </td>
                     <td className="p-4">
-                      <Badge variant={a.overAllGrade ? 'success' : 'neutral'}>
-                        {a.overAllGrade || 'Not Graded'}
+                      <Badge variant={a.overAllGrade ? "success" : "neutral"}>
+                        {a.overAllGrade || "Not Graded"}
                       </Badge>
                     </td>
                     {canManage && (
@@ -234,7 +371,7 @@ export const AllocationsPage = () => {
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          {hasRole('Admin') && (
+                          {hasRole("Admin") && (
                             <button
                               onClick={() => handleDelete(a.id)}
                               className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition-colors"
@@ -250,10 +387,13 @@ export const AllocationsPage = () => {
                 ))}
                 {allocations.length === 0 && (
                   <tr>
-                    <td colSpan={isStudent ? 5 : 7} className="p-8 text-center text-slate-500">
+                    <td
+                      colSpan={isStudent ? 5 : 7}
+                      className="p-8 text-center text-slate-500"
+                    >
                       {isStudent
-                        ? 'You have no project allocations yet. Contact your faculty guide.'
-                        : 'No project allocations found.'}
+                        ? "You have no project allocations yet. Contact your faculty guide."
+                        : "No project allocations found."}
                     </td>
                   </tr>
                 )}
@@ -267,16 +407,24 @@ export const AllocationsPage = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingAllocation ? 'Edit Allocation & Grade' : 'New Project Allocation'}
+        title={
+          editingAllocation
+            ? "Edit Allocation & Grade"
+            : "New Project Allocation"
+        }
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingAllocation ? (
             <>
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Select Project</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Select Project
+                </label>
                 <select
                   value={formData.projectId}
-                  onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, projectId: e.target.value })
+                  }
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                   required
                 >
@@ -289,26 +437,34 @@ export const AllocationsPage = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Select Student</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Select Student
+                </label>
                 <select
                   value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, studentId: e.target.value })
+                  }
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                   required
                 >
                   <option value="">-- Choose Student --</option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.fullName} ({s.userCode || 'No Code'})
+                      {s.fullName} ({s.userCode || "No Code"})
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Select Faculty Guide</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Select Faculty Guide
+                </label>
                 <select
                   value={formData.facultyId}
-                  onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, facultyId: e.target.value })
+                  }
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                   required
                 >
@@ -323,29 +479,43 @@ export const AllocationsPage = () => {
             </>
           ) : (
             <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 mb-2">
-              <p className="text-xs text-slate-400 font-semibold">Editing Project Allocation for:</p>
-              <p className="text-sm font-bold text-white mt-0.5">{editingAllocation.projectTitle}</p>
-              <p className="text-xs text-indigo-400 font-medium">Student: {editingAllocation.studentName}</p>
+              <p className="text-xs text-slate-400 font-semibold">
+                Editing Project Allocation for:
+              </p>
+              <p className="text-sm font-bold text-white mt-0.5">
+                {editingAllocation.projectTitle}
+              </p>
+              <p className="text-xs text-indigo-400 font-medium">
+                Student: {editingAllocation.studentName}
+              </p>
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Start Date</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                Start Date
+              </label>
               <input
                 type="date"
                 value={formData.projectStartDate}
-                onChange={(e) => setFormData({ ...formData, projectStartDate: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, projectStartDate: e.target.value })
+                }
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">End Date</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                End Date
+              </label>
               <input
                 type="date"
                 value={formData.projectEndDate}
-                onChange={(e) => setFormData({ ...formData, projectEndDate: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, projectEndDate: e.target.value })
+                }
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                 required
               />
@@ -354,10 +524,14 @@ export const AllocationsPage = () => {
 
           {editingAllocation && (
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Overall Grade</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                Overall Grade
+              </label>
               <select
                 value={formData.overAllGrade}
-                onChange={(e) => setFormData({ ...formData, overAllGrade: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, overAllGrade: e.target.value })
+                }
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
               >
                 <option value="">Not Graded</option>

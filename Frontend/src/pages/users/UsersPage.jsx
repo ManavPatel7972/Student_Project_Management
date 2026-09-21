@@ -12,16 +12,7 @@ import { getUserTypesApi } from "../../api/lookups";
 import { Modal } from "../../components/common/Modal";
 import { Badge } from "../../components/common/Badge";
 import { LoadingSpinner } from "../../components/common/LoadingSpinner";
-import {
-  Search,
-  Plus,
-  Edit2,
-  Trash2,
-  Camera,
-  Shield,
-  Mail,
-  Phone,
-} from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Camera, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 
@@ -251,8 +242,73 @@ export const UsersPage = () => {
       {loading ? (
         <LoadingSpinner text="Fetching users..." />
       ) : (
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden backdrop-blur-xl">
-          <div className="overflow-x-auto">
+        <div className="overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/60 backdrop-blur-xl">
+          {/* Mobile cards avoid forcing the desktop table wider than the viewport. */}
+          <div className="divide-y divide-slate-800 md:hidden">
+            {users.map((u) => (
+              <article key={u.id} className="space-y-4 p-4">
+                <div className="flex items-start gap-3">
+                  <UserAvatar user={u} onUpload={() => setPhotoUser(u)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-white">
+                          {u.fullName}
+                        </p>
+                        <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
+                          <Mail className="h-3 w-3 shrink-0 text-slate-500" />
+                          <span className="truncate">{u.email}</span>
+                        </p>
+                      </div>
+                      <Badge variant={u.isActive ? "success" : "danger"}>
+                        {u.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
+                  <MobileUserDetail
+                    label="Code / Reg No"
+                    value={u.userCode || "-"}
+                  />
+                  <MobileUserDetail label="Role" value={u.roleName || "User"} />
+                  <MobileUserDetail
+                    label="User type"
+                    value={u.userTypeName || "-"}
+                  />
+                  <MobileUserDetail
+                    label="Department"
+                    value={u.departmentName || "General"}
+                  />
+                </div>
+
+                {hasRole("Admin") && (
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleOpenEditModal(u)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-indigo-500/50 hover:text-indigo-300"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+            {users.length === 0 && (
+              <p className="p-8 text-center text-sm text-slate-500">
+                No users found matching your filters.
+              </p>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="text-[11px] font-bold uppercase text-slate-400 border-b border-slate-700/60 bg-slate-950/40">
@@ -282,9 +338,7 @@ export const UsersPage = () => {
                               className="w-9 h-9 rounded-xl object-cover border border-slate-700"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-inner">
-                              {u.fullName.charAt(0)}
-                            </div>
+                            <UserAvatar user={u} />
                           )}
                           <button
                             onClick={() => setPhotoUser(u)}
@@ -553,3 +607,43 @@ export const UsersPage = () => {
     </div>
   );
 };
+
+const UserAvatar = ({ user, onUpload }) => {
+  const avatar = user.profilePicturePath ? (
+    <img
+      src={user.profilePicturePath}
+      alt={user.fullName}
+      className="h-11 w-11 rounded-xl border border-slate-700 object-cover"
+    />
+  ) : (
+    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-white shadow-inner">
+      {user.fullName?.trim().charAt(0).toUpperCase() || "U"}
+    </div>
+  );
+
+  return (
+    <div className="relative shrink-0 group">
+      {avatar}
+      {onUpload && (
+        <button
+          type="button"
+          onClick={onUpload}
+          className="absolute -bottom-1 -right-1 rounded-full border border-slate-700 bg-slate-900 p-1 text-slate-300 transition hover:text-white md:opacity-0 md:group-hover:opacity-100"
+          title="Upload Photo"
+          aria-label={`Upload photo for ${user.fullName}`}
+        >
+          <Camera className="h-2.5 w-2.5" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+const MobileUserDetail = ({ label, value }) => (
+  <div className="min-w-0">
+    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+      {label}
+    </p>
+    <p className="truncate text-xs font-semibold text-slate-200">{value}</p>
+  </div>
+);
