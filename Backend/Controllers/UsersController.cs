@@ -405,11 +405,16 @@ namespace Backend.Controllers
 
         #region UploadPhoto
         [HttpPost("{id}/upload-photo")]
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         public async Task<IActionResult> UploadPhoto(int id, IFormFile file)
         {
             try
             {
+                // if (!User.IsInRole("Admin") && User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value != id.ToString())
+                // {
+                //     return Forbid();
+                // }
+
                 var user = await _context.Users
                     .FirstOrDefaultAsync(u => u.Id == id);
 
@@ -419,6 +424,7 @@ namespace Backend.Controllers
                     {
                         Success = false,
                         StatusCode = 404,
+                        Message = "User Not Found",
                         Errors = new List<string> { "User Not Found" }
                     });
                 }
@@ -480,7 +486,7 @@ namespace Backend.Controllers
                     await file.CopyToAsync(stream);
                 }
 
-                var photoUrl = $"/upload/profiles/{fileName}";
+                var photoUrl = $"/uploads/profiles/{fileName}";
 
                 user.ProfilePicturePath = photoUrl;
                 user.UpdatedAt = DateTime.Now;
@@ -514,11 +520,16 @@ namespace Backend.Controllers
 
         #region DeletePhoto
         [HttpDelete("{id}/profile-photo")]
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         public async Task<IActionResult> DeleteProfilePhoto(int id)
         {
             try
             {
+                //if (!User.IsInRole("Admin") && User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value != id.ToString())
+                //{
+                //    return Forbid();
+                //}
+
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
 
                 if (user == null)
